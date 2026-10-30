@@ -1,7 +1,0 @@
-# Versions used for the 2026-10-30 CPU integration checks, Python 3.12.
-# Install a matching CPU or CUDA build of torch for your own machine.
-torch==2.5.1
-numpy==1.26.4
-pandas==2.3.3
-scikit-learn==1.7.2
-matplotlib==3.9.2

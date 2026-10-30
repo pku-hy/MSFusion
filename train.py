@@ -32,9 +32,7 @@ def main():
     parser.add_argument('--device', choices=['auto','cpu','cuda'], default='auto')
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--run-id', help='defaults to dataset + timestamp')
-    parser.add_argument('--smoke', action='store_true', help='3 epochs total, one per stage, full data splits')
     parser.add_argument('--evaluate', action='store_true', help='evaluate saved checkpoints; supply original run-id and settings')
-    parser.add_argument('--check-only', action='store_true', help='validate dataset and dependencies without training')
     args = parser.parse_args()
     if args.dataset == 'custom':
         if args.file is None or args.freq is None:
@@ -80,10 +78,6 @@ def main():
     if args.device == 'cuda' and not torch.cuda.is_available():
         parser.error('CUDA unavailable; choose --device cpu or install a matching PyTorch/CUDA environment')
     print(f'Validated {path}: {n} rows, {channels} channels; split lengths {train_rows}/{val_rows}/{test_rows}', flush=True)
-    if args.check_only:
-        from exp.exp_long_term_forecasting import Exp_Long_Term_Forecast
-        print('PASS: dataset and training imports')
-        return
     if args.evaluate and not args.run_id:
         parser.error('--evaluate requires the original --run-id')
     run_id = args.run_id or f'{args.dataset}_{datetime.now():%Y%m%d_%H%M%S_%f}'
@@ -93,7 +87,7 @@ def main():
         '--data',data,'--root_path',str(path.parent),'--data_path',path.name,
         '--target',target,'--freq',freq,'--c_in',str(channels),'--c_out',str(channels),
         '--seq_len',str(args.seq_len),'--label_len','0','--pred_len',str(args.pred_len),
-        '--train_epochs',str(3 if args.smoke else args.epochs),
+        '--train_epochs',str(args.epochs),
         '--batch_size',str(args.batch_size),'--num_workers','0',
         '--use_gpu',str(args.device != 'cpu'),'--gpu',str(args.gpu)]
     print('Run ID:',run_id, flush=True)

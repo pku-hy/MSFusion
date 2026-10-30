@@ -1,14 +1,10 @@
 # MSFusion
 
-MSFusion performs long-term multivariate time series forecasting using scale-aligned supervision and coarse-to-fine prediction fusion. Training proceeds through three stages: scale-specific predictor training, fusion training with frozen predictors, and joint fine-tuning.
+MSFusion is a long-term multivariate time series forecasting model with scale-aligned supervision and coarse-to-fine prediction fusion. Training includes scale-specific predictor learning, fusion learning with frozen predictors, and joint fine-tuning.
 
-**Install the dependencies, place your data in `dataset/`, and run `python train.py`.** The default configuration runs ETTh1, detects the number of channels, and completes training, validation-based checkpoint selection, and testing. Other supported datasets and custom CSV files require no model code changes.
+## Installation
 
-The complete three-stage workflow and checkpoint reloading were verified on real ETTh1 data on October 30, 2026. These short runs verify execution; they do not establish reproduction of the paper's reported accuracy.
-
-## 1. Set up the environment
-
-Python 3.10-3.12 is recommended. Clone the repository and enter its root directory:
+Use Python 3.10-3.12. Clone the repository and install the dependencies:
 
 ```bash
 git clone https://github.com/pku-hy/MSFusion.git
@@ -16,66 +12,51 @@ cd MSFusion
 python -m venv .venv
 ```
 
-Activate the environment on Linux or macOS:
+Activate the environment:
 
 ```bash
+# Linux / macOS
 source .venv/bin/activate
 ```
 
-Activate it in Windows PowerShell:
-
 ```powershell
+# Windows PowerShell
 .\.venv\Scripts\Activate.ps1
 ```
-
-Install the dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-The main dependencies are PyTorch, NumPy, pandas, scikit-learn, and Matplotlib. Running this package does not require the original server, pretrained weights, another project, or `sktime`.
+The model runs on CPU or CUDA. For GPU training, install a PyTorch build compatible with your GPU driver.
 
-The entire workflow can run on CPU. For GPU execution, install a PyTorch build compatible with your machine and driver. Selecting `--device cuda` checks CUDA availability.
+## Dataset preparation
 
-The versions used for the integration checks are listed in `requirements-tested.txt`. They were tested in an existing environment; installation in a completely new virtual environment has not yet been verified.
-
-## 2. Prepare the data
-
-Datasets are not included. Place the files in the following locations, or use `--file` to specify another location. Only the dataset needed for the current run is required.
+Place the dataset files under `dataset/`. Only the dataset selected for a run is required. Datasets and pretrained weights are not included.
 
 ```text
-MSFusion/
-|-- train.py
-|-- run.py
-|-- requirements.txt
-|-- dataset/
-|   |-- ETT-small/
-|   |   |-- ETTh1.csv
-|   |   |-- ETTh2.csv
-|   |   |-- ETTm1.csv
-|   |   `-- ETTm2.csv
-|   |-- weather/weather.csv
-|   |-- electricity/electricity.csv
-|   |-- traffic/traffic.csv
-|   `-- solar/solar_AL.txt
-|-- models/
-|-- layers/
-|-- data_provider/
-`-- exp/
+dataset/
+|-- ETT-small/
+|   |-- ETTh1.csv
+|   |-- ETTh2.csv
+|   |-- ETTm1.csv
+|   `-- ETTm2.csv
+|-- weather/weather.csv
+|-- electricity/electricity.csv
+|-- traffic/traffic.csv
+`-- solar/solar_AL.txt
 ```
 
-| `--dataset` | Default path relative to dataset/ | Format | Default frequency |
-| --- | --- | --- | --- |
-| ETTh1 / ETTh2 | ETT-small/ETTh1.csv / ETTh2.csv | CSV with a date column | 1 hour |
-| ETTm1 / ETTm2 | ETT-small/ETTm1.csv / ETTm2.csv | CSV with a date column | 15 minutes |
-| Weather | weather/weather.csv | CSV with a date column | 10 minutes |
-| Electricity | electricity/electricity.csv | CSV with a date column | 1 hour |
-| Traffic | traffic/traffic.csv | CSV with a date column | 1 hour |
-| Solar | solar/solar_AL.txt | Headerless, comma-separated numeric matrix | 10 minutes |
-| custom | Specify with --file | CSV with a date column | Specify with --freq |
+| Dataset option | File relative to dataset/ | Sampling interval |
+| --- | --- | --- |
+| ETTh1 / ETTh2 | ETT-small/ETTh1.csv / ETTh2.csv | 1 hour |
+| ETTm1 / ETTm2 | ETT-small/ETTm1.csv / ETTm2.csv | 15 minutes |
+| Weather | weather/weather.csv | 10 minutes |
+| Electricity | electricity/electricity.csv | 1 hour |
+| Traffic | traffic/traffic.csv | 1 hour |
+| Solar | solar/solar_AL.txt | 10 minutes |
 
-For CSV files, the first column must be named `date`. All remaining columns must contain the numeric variables to forecast:
+CSV files must start with a `date` column followed by numeric feature columns. Every numeric column is predicted. Timestamps must be unique, increasing, and aligned to a regular sampling interval. Resolve missing or non-finite values before training.
 
 ```csv
 date,sensor_1,sensor_2,OT
@@ -83,77 +64,64 @@ date,sensor_1,sensor_2,OT
 2020-01-01 01:00:00,1.3,3.5,5.8
 ```
 
-Timestamps must be strictly increasing and unique. Align observations to a regular sampling interval before running the model, and resolve missing or non-finite values. The launcher checks numeric values and timestamp order; it does not fill time gaps or interpolate observations.
+Solar uses a headerless, comma-separated numeric matrix without a date column.
 
-ETT uses fixed benchmark splits of 12/4/4 months. ETTh requires at least 14,400 rows, and ETTm requires at least 57,600 rows. Other CSV datasets and Solar use chronological splits of 70% training, 10% validation, and 20% testing. Standardization statistics are fitted only on the training split. Validation and test inputs may use the preceding split's trailing history, while their forecast targets remain within the corresponding split.
+ETT uses fixed 12/4/4-month benchmark splits: ETTh needs at least 14,400 rows and ETTm at least 57,600 rows. Other datasets use chronological 70%/10%/20% training/validation/test splits. Standardization is fitted on the training split only. Validation and test input windows may include preceding historical observations, while their targets remain inside the corresponding split.
 
-## 3. Check the setup and start a run
+## Training
 
-Check the dataset and training imports first:
-
-```bash
-python train.py --check-only
-```
-
-After `PASS: dataset and training imports`, run a short integration check. The `--smoke` option trains for one epoch per stage on the complete data splits, then evaluates all test windows:
-
-```bash
-python train.py --smoke --device cpu --batch-size 128 --run-id first_smoke
-```
-
-Start a regular ETTh1 run with a 96-step forecast horizon:
+After installing dependencies and placing ETTh1 in the default location, run:
 
 ```bash
 python train.py
 ```
 
-Select another dataset, forecast horizon, or device:
+The launcher detects the channel count, validates the data, trains all three stages, selects checkpoints using validation loss, and evaluates the test split.
+
+Select another dataset, prediction horizon, or device:
 
 ```bash
 python train.py --dataset Weather --pred-len 192 --device cuda --gpu 0 --run-id weather_192
-python train.py --dataset ETTm2 --pred-len 720 --device cpu --run-id ettm2_720
+python train.py --dataset ETTh1 --device cpu --run-id etth1_96
 ```
 
-Use data stored elsewhere:
+Use a different data directory or file:
 
 ```bash
-python train.py --dataset ETTh1 --file /path/to/ETTh1.csv
 python train.py --dataset Weather --dataset-dir /path/to/dataset
+python train.py --dataset ETTh1 --file /path/to/ETTh1.csv
 ```
 
-Quote paths containing spaces on Windows, for example `--file "D:/Time Series/ETTh1.csv"`.
+Quote paths containing spaces, for example `--file "D:/Time Series/ETTh1.csv"`.
 
-## 4. Use your own dataset
+### Custom datasets
 
-Convert your data to the CSV format above and specify its file and actual sampling frequency. The launcher infers the channel count and forecasts every numeric column.
+Prepare a CSV in the format above and specify the sampling frequency:
 
 ```bash
-python train.py --dataset custom --file ./dataset/my_data.csv --freq h --run-id my_first_run
+python train.py --dataset custom --file ./dataset/my_data.csv --freq h --run-id my_model
 ```
 
-Add `--check-only` to validate the input, then use `--smoke --device cpu` to check training. For shorter datasets, reduce `--seq-len`, `--pred-len`, or `--batch-size`. The training split must accommodate the input and forecast windows; each validation and test target split must contain at least one forecast horizon.
+The number of channels is inferred automatically. For shorter datasets, reduce the input length, prediction horizon, or batch size. The training split must contain complete input and forecast windows, and each validation/test target split must contain at least one forecast horizon.
 
-## 5. Common options
+### Options
 
 | Option | Default | Description |
 | --- | --- | --- |
-| --dataset | ETTh1 | Dataset preset |
-| --seq-len | 336 | Historical input length |
-| --pred-len | 96 | One of 96, 192, 336, or 720 |
-| --epochs | 100 | Stage budgets of 33/33/34 epochs, with validation-based early stopping |
-| --batch-size | 16 | Reduce this for limited memory |
+| --dataset | ETTh1 | Dataset preset, or custom |
+| --seq-len | 336 | Input history length |
+| --pred-len | 96 | Forecast length: 96, 192, 336, or 720 |
+| --epochs | 100 | Total budget across three stages; minimum 3 |
+| --batch-size | 16 | Training and evaluation batch size |
 | --device | auto | auto, cpu, or cuda |
-| --gpu | 0 | GPU index visible to the current process |
-| --run-id | Dataset name and timestamp | Use a distinct ID for each training run |
-| --smoke | Disabled | One epoch per stage to check execution |
+| --gpu | 0 | GPU index visible to the process |
+| --run-id | Dataset name and timestamp | Output identifier; use a new ID for each training run |
 
-The preset uses factor-two average pooling, two downsampling layers, AdamW, a learning rate of 0.001, random seed 2021, an auxiliary loss coefficient of 0.1, and predictor dimension 16. Early-stopping patience is 5/3/3 for the three stages. Settings not explicitly specified in the paper use the defaults of this source package.
+Defaults include factor-two average pooling, two downsampling layers, predictor dimension 16, AdamW, learning rate 0.001, random seed 2021, and auxiliary loss coefficient 0.1. A 100-epoch budget is split into 33/33/34 epochs with early-stopping patience of 5/3/3. For additional model arguments, see `python run.py --help`; `run.py` implements the same training pipeline used by `train.py`.
 
-For detailed model options, run `python run.py --help`. The `train.py` launcher provides convenient presets, while `run.py` exposes lower-level controls. This package supports long-term multivariate forecasting.
+## Results and checkpoint evaluation
 
-## 6. Inspect results and reload checkpoints
-
-Each run prints its Run ID. Outputs are written relative to the repository root:
+Outputs are saved relative to the repository root:
 
 ```text
 checkpoints/<setting>/
@@ -167,39 +135,37 @@ test_results/<setting>/
     stage3/metrics.json
 ```
 
-The `config.json` file records the actual run arguments. Each `metrics.json` file contains MSE and MAE; lower values are better. Metrics are computed in the standardized value space using training-split statistics. Stage I evaluates the independent prediction at the original resolution; Stages II and III evaluate the fused prediction. Use the Stage III checkpoint as the final model.
+`config.json` records the run arguments. Metrics files contain MSE and MAE in standardized value space; lower values are better. Stage I evaluates the independent original-resolution prediction. Stages II and III evaluate the fused prediction. The Stage III checkpoint is the final model.
 
-Reload checkpoints for evaluation using the same dataset, window lengths, and Run ID:
+Reload checkpoints using the original dataset, Run ID, input length, and forecast horizon:
 
 ```bash
-python train.py --evaluate --device cpu --batch-size 128 --run-id first_smoke
+python train.py --dataset ETTh1 --evaluate --device cpu --run-id etth1_96
 python train.py --dataset Weather --pred-len 192 --evaluate --run-id weather_192
 ```
 
-Evaluation updates the corresponding metrics files. Use a new Run ID for each new training run to avoid overwriting checkpoints. Plots are disabled by default; the lower-level `run.py --plot` option saves sample prediction PDFs.
+Evaluation updates the corresponding metrics files. New training runs should use distinct Run IDs to preserve previous checkpoints. The lower-level `run.py --plot` option saves sample prediction PDFs.
 
-## 7. Troubleshooting
+## Troubleshooting
 
-- **Dataset not found:** Check the filename and directory, or provide the full path with `--file`.
-- **Splits are too short or contain no valid windows:** Check dataset completeness and reduce the window lengths or batch size. Use `custom` for arbitrary short CSV files; ETT uses fixed benchmark splits.
-- **CUDA is unavailable or the driver is incompatible:** Check the workflow with `--device cpu`, then configure a compatible GPU environment.
-- **GPU memory is exhausted:** Reduce the batch size. Memory usage grows with the number of variables.
-- **Invalid timestamps or values:** Ensure the first column is date and all other columns contain finite numeric values. Resolve missing values, duplicate timestamps, and irregular sampling first.
-- **Missing or incompatible checkpoints:** Reuse the original dataset, Run ID, input length, and forecast horizon for evaluation.
+- **Dataset not found:** Check the path or specify it using --file.
+- **Insufficient data:** Reduce window lengths or batch size. Use custom for arbitrary CSV datasets rather than the fixed ETT split.
+- **CUDA unavailable:** Select --device cpu or install a compatible PyTorch GPU build.
+- **Out of memory:** Reduce --batch-size, especially for datasets with many variables.
+- **Invalid data:** Ensure timestamps are ordered and unique, feature columns are numeric, and all values are finite. Align sampling intervals before running.
+- **Checkpoint mismatch:** Reuse the original dataset, Run ID, and model configuration.
 
-## 8. Validation and source layout
+## Repository structure
 
-The complete ETTh1 splits were used to verify one training epoch per stage, validation-based checkpoint selection, all three checkpoint files, and evaluation after independent checkpoint reloading. Synthetic data were also used to check the custom CSV and Solar workflows. See the [validation report](verification/REPORT.md) for commands, environment details, and results. Full accuracy reproduction across all eight real datasets and forecast horizons remains to be completed.
-
-| File or directory | Purpose |
+| Path | Purpose |
 | --- | --- |
-| train.py | Dataset presets, channel inference, input checks, and convenient execution |
-| run.py | Detailed model and training arguments |
-| models/ms_fusion.py | Scale-specific predictions and recursive fusion |
-| exp/exp_long_term_forecasting.py | Three-stage training, validation, checkpoints, and testing |
-| data_provider/ | Data splits, standardization, and sliding windows |
-| smoke_model.py | Model forward and backward checks without a dataset |
-| verification/check_loaders.py | Synthetic CSV and Solar integration checks |
-| docs/SOURCE_AUDIT.md | Source provenance and method-alignment changes |
+| train.py | Dataset presets, input validation, and training launcher |
+| run.py | Model configuration and training execution |
+| models/ms_fusion.py | Scale-specific predictors and recursive fusion |
+| layers/ | Embedding and normalization layers |
+| exp/ | Three-stage training, checkpoint selection, and evaluation |
+| data_provider/ | Dataset loading, splits, and sliding windows |
+| utils/ | Forecasting metrics, time features, and plotting |
+| requirements.txt | Runtime dependencies |
 
-This package was prepared from `/home/yhe/MS_fusion/`. Changes include pre-fusion auxiliary supervision, consistent training and validation losses, and correct stage-specific evaluation. These changes can affect historical results. The `SOURCE_MANIFEST.json` file records hashes of the original source snapshot, rather than hashes of the current files.
+The training and checkpoint-reloading workflow has been exercised on real ETTh1 data using CPU execution. Full accuracy reproduction across all datasets and horizons, GPU execution, and installation in a clean environment remain unverified.
