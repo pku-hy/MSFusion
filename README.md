@@ -68,7 +68,57 @@ Solar uses a headerless, comma-separated numeric matrix without a date column.
 
 ETT uses fixed 12/4/4-month benchmark splits: ETTh needs at least 14,400 rows and ETTm at least 57,600 rows. Other datasets use chronological 70%/10%/20% training/validation/test splits. Standardization is fitted on the training split only. Validation and test input windows may include preceding historical observations, while their targets remain inside the corresponding split.
 
-## Training
+## Ready-to-run scripts
+
+After installing the dependencies and preparing the data, run a dataset script:
+
+```bash
+bash scripts/ETTh1.sh
+bash scripts/ETTh2.sh
+bash scripts/ETTm1.sh
+bash scripts/ETTm2.sh
+bash scripts/Weather.sh
+bash scripts/Electricity.sh
+bash scripts/Traffic.sh
+bash scripts/Solar.sh
+```
+
+Each script runs all four prediction horizons (96, 192, 336, and 720) sequentially. To run only selected horizons, pass them as arguments:
+
+```bash
+bash scripts/ETTh1.sh 96
+bash scripts/Weather.sh 96 192
+```
+
+Run the complete eight-dataset benchmark (32 training runs):
+
+```bash
+bash scripts/all.sh
+```
+
+Configure the environment before running a script:
+
+```bash
+DEVICE=cuda GPU=0 BATCH_SIZE=32 bash scripts/ETTh1.sh
+DATASET_DIR=/path/to/dataset DEVICE=cpu bash scripts/Weather.sh 96
+PYTHON=/path/to/python EPOCHS=100 bash scripts/all.sh
+```
+
+| Environment variable | Default | Purpose |
+| --- | --- | --- |
+| PYTHON | python | Python executable from the installed environment |
+| DATASET_DIR | Repository dataset/ | Dataset root directory |
+| DEVICE | auto | auto, cpu, or cuda |
+| GPU | 0 | GPU index |
+| BATCH_SIZE | 16 | Batch size |
+| EPOCHS | 100 | Total three-stage epoch budget |
+| SEQ_LEN | 336 | Input history length |
+| LOG_DIR | Repository logs/ | Console log directory |
+| RUN_TAG | Timestamp and process ID | Shared experiment tag |
+
+Scripts print each Run ID and save its output to `logs/<run_id>.log`. Runs execute sequentially and stop if a command fails. Every horizon receives a distinct Run ID. Use a new RUN_TAG for repeated experiments to preserve existing outputs. The scripts locate the repository relative to their own location and can be invoked from another working directory. Use Bash on Linux/macOS or Git Bash/WSL on Windows; the Python commands below also work directly in PowerShell.
+
+## Training with Python
 
 After installing dependencies and placing ETTh1 in the default location, run:
 
@@ -160,6 +210,7 @@ Evaluation updates the corresponding metrics files. New training runs should use
 | Path | Purpose |
 | --- | --- |
 | train.py | Dataset presets, input validation, and training launcher |
+| scripts/ | Dataset scripts and the complete benchmark runner |
 | run.py | Model configuration and training execution |
 | models/ms_fusion.py | Scale-specific predictors and recursive fusion |
 | layers/ | Embedding and normalization layers |
