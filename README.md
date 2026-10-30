@@ -56,7 +56,7 @@ dataset/
 | Traffic | traffic/traffic.csv | 1 hour |
 | Solar | solar/solar_AL.txt | 10 minutes |
 
-CSV files must start with a `date` column followed by numeric feature columns. Every numeric column is predicted. Timestamps must be unique, increasing, and aligned to a regular sampling interval. Resolve missing or non-finite values before training.
+CSV files must start with a `date` column followed by numeric feature columns. Every numeric column is predicted. Timestamps must be ordered, and observations should follow a regular sampling interval. Custom CSV timestamps must be unique. Built-in benchmark presets preserve the original row order when duplicate timestamps occur, including the duplicate in the supplied Weather data. Resolve missing or non-finite values before training.
 
 ```csv
 date,sensor_1,sensor_2,OT
@@ -202,7 +202,7 @@ Evaluation updates the corresponding metrics files. New training runs should use
 - **Insufficient data:** Reduce window lengths or batch size. Use custom for arbitrary CSV datasets rather than the fixed ETT split.
 - **CUDA unavailable:** Select --device cpu or install a compatible PyTorch GPU build.
 - **Out of memory:** Reduce --batch-size, especially for datasets with many variables.
-- **Invalid data:** Ensure timestamps are ordered and unique, feature columns are numeric, and all values are finite. Align sampling intervals before running.
+- **Invalid data:** Ensure timestamps are ordered, custom timestamps are unique, feature columns are numeric, and all values are finite. Align sampling intervals before running.
 - **Checkpoint mismatch:** Reuse the original dataset, Run ID, and model configuration.
 
 ## Repository structure

@@ -57,8 +57,12 @@ def main():
         if frame.columns[0] != 'date' or len(frame.columns) < 2:
             parser.error('CSV must begin with date and contain numeric feature columns')
         dates = pd.to_datetime(frame['date'], errors='raise')
-        if not dates.is_monotonic_increasing or dates.duplicated().any():
-            parser.error('Dates must be strictly increasing, unique, and already sorted')
+        if not dates.is_monotonic_increasing:
+            parser.error('Dates must already be sorted in increasing order')
+        if dates.duplicated().any():
+            if args.dataset == 'custom':
+                parser.error('Custom dataset timestamps must be unique')
+            print('Duplicate benchmark timestamps detected; preserving the original observation order.', flush=True)
         values = frame.iloc[:,1:].to_numpy(dtype=float)
         target = str(frame.columns[-1])
     if not np.isfinite(values).all():
