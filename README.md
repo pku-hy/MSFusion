@@ -1,77 +1,81 @@
-# MSFusion：快速开始
+# MSFusion
 
-MSFusion 通过尺度对齐监督和由粗到细的预测融合完成长期多变量时间序列预测。训练依次执行尺度预测器训练、冻结预测器的融合训练、联合微调三个阶段。
+MSFusion performs long-term multivariate time series forecasting using scale-aligned supervision and coarse-to-fine prediction fusion. Training proceeds through three stages: scale-specific predictor training, fusion training with frozen predictors, and joint fine-tuning.
 
-**安装依赖后，把数据放进 `dataset/`，即可执行 `python train.py`。** 默认运行 ETTh1，自动识别通道数并完成训练、验证选模和测试。选择其他数据集或接入自己的CSV也无需修改模型代码。
+**Install the dependencies, place your data in `dataset/`, and run `python train.py`.** The default configuration runs ETTh1, detects the number of channels, and completes training, validation-based checkpoint selection, and testing. Other supported datasets and custom CSV files require no model code changes.
 
-2026-10-30 已用真实 ETTh1 数据完成三阶段短训练和检查点重载测试。这确认了代码能运行，尚不代表复现了论文表格的精度。
+The complete three-stage workflow and checkpoint reloading were verified on real ETTh1 data on October 30, 2026. These short runs verify execution; they do not establish reproduction of the paper's reported accuracy.
 
-## 1. 安装环境
+## 1. Set up the environment
 
-建议 Python 3.10–3.12。以下命令在解压后的 `MSFusion_paper` 文件夹中执行。
+Python 3.10-3.12 is recommended. Clone the repository and enter its root directory:
 
 ```bash
+git clone https://github.com/pku-hy/MSFusion.git
+cd MSFusion
 python -m venv .venv
 ```
 
-Linux/macOS 激活：
+Activate the environment on Linux or macOS:
 
 ```bash
 source .venv/bin/activate
 ```
 
-Windows PowerShell 激活：
+Activate it in Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 ```
 
-安装依赖：
+Install the dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-主要依赖为 PyTorch、NumPy、pandas、scikit-learn、Matplotlib。运行不需要原服务器路径、预训练权重、其他项目或 `sktime`。
-CPU 可以完成整个流程。使用 GPU 时，应事先安装适合本机驱动的 PyTorch；`--device cuda` 会检查 CUDA 是否可用。
-实际通过验证的依赖版本见 `requirements-tested.txt`。该版本列表来自已有环境，尚未在全新虚拟环境中逐项重装验证。
+The main dependencies are PyTorch, NumPy, pandas, scikit-learn, and Matplotlib. Running this package does not require the original server, pretrained weights, another project, or `sktime`.
 
-## 2. 放入数据
+The entire workflow can run on CPU. For GPU execution, install a PyTorch build compatible with your machine and driver. Selecting `--device cuda` checks CUDA availability.
 
-代码包不含数据。把已有数据复制到以下位置，也可以用 `--file` 指定其他位置。只需准备当前要运行的数据集。
+The versions used for the integration checks are listed in `requirements-tested.txt`. They were tested in an existing environment; installation in a completely new virtual environment has not yet been verified.
+
+## 2. Prepare the data
+
+Datasets are not included. Place the files in the following locations, or use `--file` to specify another location. Only the dataset needed for the current run is required.
 
 ```text
-MSFusion_paper/
-├── train.py
-├── run.py
-├── requirements.txt
-├── dataset/
-│   ├── ETT-small/
-│   │   ├── ETTh1.csv
-│   │   ├── ETTh2.csv
-│   │   ├── ETTm1.csv
-│   │   └── ETTm2.csv
-│   ├── weather/weather.csv
-│   ├── electricity/electricity.csv
-│   ├── traffic/traffic.csv
-│   └── solar/solar_AL.txt
-├── models/
-├── layers/
-├── data_provider/
-└── exp/
+MSFusion/
+|-- train.py
+|-- run.py
+|-- requirements.txt
+|-- dataset/
+|   |-- ETT-small/
+|   |   |-- ETTh1.csv
+|   |   |-- ETTh2.csv
+|   |   |-- ETTm1.csv
+|   |   `-- ETTm2.csv
+|   |-- weather/weather.csv
+|   |-- electricity/electricity.csv
+|   |-- traffic/traffic.csv
+|   `-- solar/solar_AL.txt
+|-- models/
+|-- layers/
+|-- data_provider/
+`-- exp/
 ```
 
-| `--dataset` | 默认文件（相对 dataset） | 格式 | 预设频率 |
+| `--dataset` | Default path relative to dataset/ | Format | Default frequency |
 | --- | --- | --- | --- |
-| ETTh1 / ETTh2 | ETT-small/ETTh1.csv / ETTh2.csv | 带 date 列的 CSV | 1小时 |
-| ETTm1 / ETTm2 | ETT-small/ETTm1.csv / ETTm2.csv | 带 date 列的 CSV | 15分钟 |
-| Weather | weather/weather.csv | 带 date 列的 CSV | 10分钟 |
-| Electricity | electricity/electricity.csv | 带 date 列的 CSV | 1小时 |
-| Traffic | traffic/traffic.csv | 带 date 列的 CSV | 1小时 |
-| Solar | solar/solar_AL.txt | 无表头、逗号分隔数值矩阵 | 10分钟 |
-| custom | 用 `--file` 指定 | 带 date 列的 CSV | 用 `--freq` 指定 |
+| ETTh1 / ETTh2 | ETT-small/ETTh1.csv / ETTh2.csv | CSV with a date column | 1 hour |
+| ETTm1 / ETTm2 | ETT-small/ETTm1.csv / ETTm2.csv | CSV with a date column | 15 minutes |
+| Weather | weather/weather.csv | CSV with a date column | 10 minutes |
+| Electricity | electricity/electricity.csv | CSV with a date column | 1 hour |
+| Traffic | traffic/traffic.csv | CSV with a date column | 1 hour |
+| Solar | solar/solar_AL.txt | Headerless, comma-separated numeric matrix | 10 minutes |
+| custom | Specify with --file | CSV with a date column | Specify with --freq |
 
-CSV 第一列必须名为 `date`，其余列均为待预测数值变量：
+For CSV files, the first column must be named `date`. All remaining columns must contain the numeric variables to forecast:
 
 ```csv
 date,sensor_1,sensor_2,OT
@@ -79,77 +83,77 @@ date,sensor_1,sensor_2,OT
 2020-01-01 01:00:00,1.3,3.5,5.8
 ```
 
-日期应严格递增、无重复，数据应提前按固定频率对齐，不含缺失值和无穷值。程序检查数值和时间顺序，但不会自动补齐时间缺口或插值。
+Timestamps must be strictly increasing and unique. Align observations to a regular sampling interval before running the model, and resolve missing or non-finite values. The launcher checks numeric values and timestamp order; it does not fill time gaps or interpolate observations.
 
-ETT 使用固定12/4/4个月基准划分，ETTh至少14400行，ETTm至少57600行。其他CSV与Solar按时间顺序划分70%训练、10%验证、20%测试。归一化统计仅在训练段拟合。验证和测试可使用前一段末尾历史作为输入，预测目标仍位于对应划分中。
+ETT uses fixed benchmark splits of 12/4/4 months. ETTh requires at least 14,400 rows, and ETTm requires at least 57,600 rows. Other CSV datasets and Solar use chronological splits of 70% training, 10% validation, and 20% testing. Standardization statistics are fitted only on the training split. Validation and test inputs may use the preceding split's trailing history, while their forecast targets remain within the corresponding split.
 
-## 3. 检查并开始运行
+## 3. Check the setup and start a run
 
-首次使用先检查文件和依赖：
+Check the dataset and training imports first:
 
 ```bash
 python train.py --check-only
 ```
 
-看到 `PASS: dataset and training imports` 后，执行短训练。`--smoke` 在完整数据划分上每阶段训练1轮，共3轮，然后评价全部测试窗口：
+After `PASS: dataset and training imports`, run a short integration check. The `--smoke` option trains for one epoch per stage on the complete data splits, then evaluates all test windows:
 
 ```bash
 python train.py --smoke --device cpu --batch-size 128 --run-id first_smoke
 ```
 
-正式训练 ETTh1，默认预测未来96步：
+Start a regular ETTh1 run with a 96-step forecast horizon:
 
 ```bash
 python train.py
 ```
 
-其他数据集和预测长度：
+Select another dataset, forecast horizon, or device:
 
 ```bash
 python train.py --dataset Weather --pred-len 192 --device cuda --gpu 0 --run-id weather_192
 python train.py --dataset ETTm2 --pred-len 720 --device cpu --run-id ettm2_720
 ```
 
-数据位于其他位置时：
+Use data stored elsewhere:
 
 ```bash
 python train.py --dataset ETTh1 --file /path/to/ETTh1.csv
 python train.py --dataset Weather --dataset-dir /path/to/dataset
 ```
 
-Windows路径含空格时加引号，例如 `--file "D:/Time Series/ETTh1.csv"`。
+Quote paths containing spaces on Windows, for example `--file "D:/Time Series/ETTh1.csv"`.
 
-## 4. 使用自己的数据
+## 4. Use your own dataset
 
-将数据转换为前述CSV格式，指定文件和实际采样频率即可。通道数自动推断，所有数值列都会被预测。
+Convert your data to the CSV format above and specify its file and actual sampling frequency. The launcher infers the channel count and forecasts every numeric column.
 
 ```bash
 python train.py --dataset custom --file ./dataset/my_data.csv --freq h --run-id my_first_run
 ```
 
-可先加 `--check-only`，再用 `--smoke --device cpu` 检查训练。数据较短时减小 `--seq-len`、`--pred-len` 或 `--batch-size`。训练段须容纳完整输入加预测窗口；验证、测试目标段各须至少有一个预测长度。
+Add `--check-only` to validate the input, then use `--smoke --device cpu` to check training. For shorter datasets, reduce `--seq-len`, `--pred-len`, or `--batch-size`. The training split must accommodate the input and forecast windows; each validation and test target split must contain at least one forecast horizon.
 
-## 5. 常用参数
+## 5. Common options
 
-| 参数 | 默认值 | 说明 |
+| Option | Default | Description |
 | --- | --- | --- |
-| `--dataset` | ETTh1 | 数据集预设 |
-| `--seq-len` | 336 | 输入历史长度 |
-| `--pred-len` | 96 | 可选96、192、336、720 |
-| `--epochs` | 100 | 三阶段预算33/33/34轮，验证早停 |
-| `--batch-size` | 16 | 小显存时调低 |
-| `--device` | auto | auto、cpu、cuda |
-| `--gpu` | 0 | 当前进程可见GPU编号 |
-| `--run-id` | 数据集名加时间戳 | 不同训练使用不同ID |
-| `--smoke` | 关闭 | 三阶段各1轮，仅确认流程 |
+| --dataset | ETTh1 | Dataset preset |
+| --seq-len | 336 | Historical input length |
+| --pred-len | 96 | One of 96, 192, 336, or 720 |
+| --epochs | 100 | Stage budgets of 33/33/34 epochs, with validation-based early stopping |
+| --batch-size | 16 | Reduce this for limited memory |
+| --device | auto | auto, cpu, or cuda |
+| --gpu | 0 | GPU index visible to the current process |
+| --run-id | Dataset name and timestamp | Use a distinct ID for each training run |
+| --smoke | Disabled | One epoch per stage to check execution |
 
-预设使用因子2平均池化、两层降采样、AdamW、学习率0.001、随机种子2021、联合辅助损失系数0.1、预测器维度16。阶段早停耐心值为5/3/3。未由论文明确指定的参数使用整理版默认值。
+The preset uses factor-two average pooling, two downsampling layers, AdamW, a learning rate of 0.001, random seed 2021, an auxiliary loss coefficient of 0.1, and predictor dimension 16. Early-stopping patience is 5/3/3 for the three stages. Settings not explicitly specified in the paper use the defaults of this source package.
 
-更详细的模型参数见 `python run.py --help`。`train.py` 提供便捷预设，`run.py` 提供底层控制。本包支持长期多变量预测；不提供分类、异常检测等其他任务入口。
+For detailed model options, run `python run.py --help`. The `train.py` launcher provides convenient presets, while `run.py` exposes lower-level controls. This package supports long-term multivariate forecasting.
 
-## 6. 查看结果与重新评价
+## 6. Inspect results and reload checkpoints
 
-运行会打印 Run ID。输出位于代码根目录：
+Each run prints its Run ID. Outputs are written relative to the repository root:
 
 ```text
 checkpoints/<setting>/
@@ -163,39 +167,39 @@ test_results/<setting>/
     stage3/metrics.json
 ```
 
-`config.json` 保存实际运行参数；每个 `metrics.json` 保存 MSE、MAE，越小越好。指标在训练段统计标准化后的尺度上计算。Stage I评价原分辨率独立预测，Stage II/III评价融合预测。最终模型使用Stage III检查点。
+The `config.json` file records the actual run arguments. Each `metrics.json` file contains MSE and MAE; lower values are better. Metrics are computed in the standardized value space using training-split statistics. Stage I evaluates the independent prediction at the original resolution; Stages II and III evaluate the fused prediction. Use the Stage III checkpoint as the final model.
 
-用相同的数据、窗口和Run ID重新加载检查点评价：
+Reload checkpoints for evaluation using the same dataset, window lengths, and Run ID:
 
 ```bash
 python train.py --evaluate --device cpu --batch-size 128 --run-id first_smoke
 python train.py --dataset Weather --pred-len 192 --evaluate --run-id weather_192
 ```
 
-重新评价会更新对应指标文件。新训练应使用新的Run ID，避免覆盖旧权重。默认不生成图，底层 `run.py --plot` 可保存样例预测PDF。
+Evaluation updates the corresponding metrics files. Use a new Run ID for each new training run to avoid overwriting checkpoints. Plots are disabled by default; the lower-level `run.py --plot` option saves sample prediction PDFs.
 
-## 7. 常见问题
+## 7. Troubleshooting
 
-- **Dataset not found**：核对文件名和目录，或用 `--file` 指定完整路径。
-- **划分太短/没有有效窗口**：检查数据是否完整，减小窗口或batch size；任意短CSV请使用custom，不能套用ETT固定划分。
-- **CUDA不可用/驱动不匹配**：先用 `--device cpu` 检查流程，再配置本机GPU环境。
-- **显存不足**：减小batch size，多变量数据开销随通道数增加。
-- **日期或数值格式错误**：首列须为date，其余均为有限数值；提前处理缺失、重复和不规则时间间隔。
-- **检查点找不到/参数结构不匹配**：评价时沿用原数据集、Run ID、输入长度和预测长度。
+- **Dataset not found:** Check the filename and directory, or provide the full path with `--file`.
+- **Splits are too short or contain no valid windows:** Check dataset completeness and reduce the window lengths or batch size. Use `custom` for arbitrary short CSV files; ETT uses fixed benchmark splits.
+- **CUDA is unavailable or the driver is incompatible:** Check the workflow with `--device cpu`, then configure a compatible GPU environment.
+- **GPU memory is exhausted:** Reduce the batch size. Memory usage grows with the number of variables.
+- **Invalid timestamps or values:** Ensure the first column is date and all other columns contain finite numeric values. Resolve missing values, duplicate timestamps, and irregular sampling first.
+- **Missing or incompatible checkpoints:** Reuse the original dataset, Run ID, input length, and forecast horizon for evaluation.
 
-## 8. 验证与源码导航
+## 8. Validation and source layout
 
-已验证真实ETTh1完整划分上的三阶段短训练、三个最佳检查点保存及独立重载评价。另用合成数据验证custom CSV和Solar格式的三阶段流程。详细环境、命令与结果见 [验证记录](verification/REPORT.md)。尚未对八个真实数据集及全部预测长度完成全量复现。
+The complete ETTh1 splits were used to verify one training epoch per stage, validation-based checkpoint selection, all three checkpoint files, and evaluation after independent checkpoint reloading. Synthetic data were also used to check the custom CSV and Solar workflows. See the [validation report](verification/REPORT.md) for commands, environment details, and results. Full accuracy reproduction across all eight real datasets and forecast horizons remains to be completed.
 
-| 文件 | 用途 |
+| File or directory | Purpose |
 | --- | --- |
-| train.py | 数据预设、通道识别、输入检查、便捷启动 |
-| run.py | 详细模型与训练参数 |
-| models/ms_fusion.py | 尺度预测与递归融合 |
-| exp/exp_long_term_forecasting.py | 三阶段训练、验证、检查点与测试 |
-| data_provider/ | 数据划分、标准化、滑窗 |
-| smoke_model.py | 无需数据的模型前向/反向检查 |
-| verification/check_loaders.py | 合成CSV/Solar三阶段集成检查 |
-| docs/SOURCE_AUDIT.md | 原始源码来源及方法修正记录 |
+| train.py | Dataset presets, channel inference, input checks, and convenient execution |
+| run.py | Detailed model and training arguments |
+| models/ms_fusion.py | Scale-specific predictions and recursive fusion |
+| exp/exp_long_term_forecasting.py | Three-stage training, validation, checkpoints, and testing |
+| data_provider/ | Data splits, standardization, and sliding windows |
+| smoke_model.py | Model forward and backward checks without a dataset |
+| verification/check_loaders.py | Synthetic CSV and Solar integration checks |
+| docs/SOURCE_AUDIT.md | Source provenance and method-alignment changes |
 
-源码整理自 `/home/yhe/MS_fusion/`。历史修正包括融合前辅助监督、训练/验证损失一致性和阶段正确评价；这些变化可能影响旧实验数值。`SOURCE_MANIFEST.json` 记录原始源码哈希，不能作为当前整理版文件哈希使用。
+This package was prepared from `/home/yhe/MS_fusion/`. Changes include pre-fusion auxiliary supervision, consistent training and validation losses, and correct stage-specific evaluation. These changes can affect historical results. The `SOURCE_MANIFEST.json` file records hashes of the original source snapshot, rather than hashes of the current files.

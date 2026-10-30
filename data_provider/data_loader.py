@@ -316,7 +316,7 @@ class Dataset_Solar(Dataset):
         df_raw = []
         with open(os.path.join(self.root_path, self.data_path), "r", encoding='utf-8') as f:
             for line in f.readlines():
-                line = line.strip('\n').split(',')  # 去除文本中的换行符
+                line = line.strip('\n').split(',')  # Remove the trailing newline before parsing the values.
                 data_line = np.stack([float(i) for i in line])
                 df_raw.append(data_line)
         df_raw = np.stack(df_raw, 0)

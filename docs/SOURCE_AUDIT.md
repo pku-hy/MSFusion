@@ -1,58 +1,39 @@
-# MSFusion paper source package
+# Source audit and provenance
 
-> 本文件为第一轮源码核对历史记录。最新安装、支持范围、运行命令和验证状态以根目录README及verification/REPORT.md为准。后续已精简为论文长期预测加载器并增加train.py入口。
+Prepared on October 30, 2026, from `/home/yhe/MS_fusion/` on the original MSFusion server. The original project directory was preserved. The local source snapshot was archived as `source_review/msfusion_source_review_20261030.tar.gz` outside this repository. `SOURCE_MANIFEST.json` records SHA256 hashes of the original Python and shell files, not the current edited files.
 
-整理日期：2026-10-30。来源：kangbo (`10.129.161.221`)，`/home/yhe/MS_fusion/`。
-原目录未修改。原始代码另存本地 `source_review/`，归档为 `source_review/msfusion_source_review_20261030.tar.gz`。
-`SOURCE_MANIFEST.json` 记录原始 Python/shell 文件 SHA256；整理后文件不应与原始哈希混淆。
+## Scope
 
-## 范围与状态
+The package corresponds to *MSFusion: Scale-Aligned Supervision and Coarse-to-Fine Prediction Fusion for Long-Term Time Series Forecasting*. It retains the historical predictors, RevIN, data loading, and three-stage training framework while aligning auxiliary supervision and evaluation with the described method.
 
-对应论文 MSFusion: Scale-Aligned Supervision and Coarse-to-Fine Prediction Fusion for Long-Term Time Series Forecasting。
-保留原预测器、RevIN、数据加载与训练框架；修正论文公式与代码不一致处。
-本包是待验证的论文方法整理版，不是已经复现论文 Table II/V 数值的冻结发布版。
-未打包数据、权重、实验结果或第三方基线，不自动启动全量训练。
+The repository contains source code, documentation, and short-run validation logs. Datasets, trained weights, and third-party baseline implementations are not included. Current setup instructions and validation status are maintained in the root README and `verification/REPORT.md`.
 
-## 安装与运行
+## Method alignment
 
-建议独立 Python 3.10+ 环境，按硬件安装合适 PyTorch，再 `pip install -r requirements.txt`。
-依赖尚未冻结版本，最终需以实际通过端到端训练的环境导出锁定版本。
-从本目录执行，数据从原服务器已有数据集复制或只读链接到 `dataset/`。
-
-```bash
-python run.py --task_name long_term_forecast --is_training 1 --model_id ETTh1_paper_96 --model ms_fusion --data ETTh1 --root_path ./dataset/ETT-small/ --data_path ETTh1.csv --features M --seq_len 336 --label_len 0 --pred_len 96 --c_in 7 --c_out 7 --down_sampling_layers 2 --down_sampling_window 2 --down_sampling_method avg --learning_rate 0.001 --scale_reg_weight 0.1 --num_workers 0
-```
-
-其余预测长度：192、336、720。四个 ETT、Weather、Electricity、Traffic、Solar 的加载器保留；数据路径与通道数须按实际数据配置。
-当前仅支持 M 多变量同维预测、平均池化；CLI 会拒绝其他设置。
-论文没有明确指定的超参数使用历史代码默认值，不能视作历史结果对应配置。
-默认总训练预算100轮，按三阶段拆分，验证早停；默认 lambda=0.1 是原代码值，不代表论文已证明其唯一取值。
-训练使用验证损失选模，测试结果分 stage 保存于 `test_results/<setting>/stageN/metrics.json`。
-历史 shell 脚本仅保留于原始快照，包含删除输出与硬编码多GPU行为，不纳入整理版运行入口。
-
-## 论文与源码对应及修正
-
-| 论文 | 位置 | 整理说明 |
+| Paper component | Implementation | Change or retained behavior |
 | --- | --- | --- |
-| 输入/目标同算子降采样 | models/ms_fusion.py 与 exp/exp_long_term_forecasting.py | 保留平均池化 |
-| 每尺度预测和归一化 | models/ms_fusion.py | 保留历史参数命名与结构 |
-| Eq.24 递归融合 | MoE_fusion_Block | 原名称为历史命名，实际为固定投影，无路由器 |
-| Eq.27–29 辅助损失 | Model.forward、vali、train_stagewise | 返回融合前列表；训练和验证统一2^-s权重、同一lambda |
-| Stage I/II 冻结 | train_stagewise | Stage I 包括归一化参数；Stage II 仅训练 moe_fusion |
-| Table V阶段评价 | test | 移除重复定义，按当前stage前向；分stage输出指标 |
-| 论文默认配置 | run.py | 输入336、两层、因子2、学习率0.001 |
+| Matching input and target pyramids | models/ms_fusion.py and exp/exp_long_term_forecasting.py | Retain average pooling for both inputs and targets |
+| Scale-specific prediction and normalization | models/ms_fusion.py | Retain historical parameter names and predictor structure |
+| Recursive fusion, Eq. 24 | MoE_fusion_Block | Historical class name; the module uses learned projections without a routing mechanism |
+| Auxiliary losses, Eqs. 27-29 | Model.forward, vali, and train_stagewise | Preserve pre-fusion predictions; use the same geometric weights and auxiliary coefficient in training and validation |
+| Stage I/II freezing | train_stagewise | Include normalization parameters in Stage I; train only moe_fusion in Stage II |
+| Stage-specific evaluation, Table V | test | Remove duplicate evaluation definitions, select the correct forward stage, and save separate stage metrics |
+| Paper configuration | run.py and train.py | Default input length 336, two downsampling layers, factor two, and learning rate 0.001 |
 
-原代码Stage III对已融合列表施加辅助损失，验证却用无权重且默认系数0的损失；这会影响选模。
-原Stage I未解冻归一化参数；整理版纳入训练，进一步意味着结果可能与旧实验不同。
-原训练逐轮打印测试损失；整理版取消，测试在训练结束后执行。
-修正不会追溯改变旧权重或旧实验结果。
+The historical Stage III code applied auxiliary losses to the already fused prediction list. Its validation path used unweighted scale losses with a default coefficient of zero. The prepared version applies supervision to pre-fusion predictions and uses consistent weighted objectives for training and validation.
 
-## 待完成的复现证据
+The historical Stage I parameter selection left normalization parameters frozen. They are included in Stage I training in this package. Per-epoch test-loss reporting was removed; test evaluation is performed after training. These changes can alter checkpoint selection and final results. They do not retroactively modify historical weights or recorded experiments.
 
-1. 完整环境依赖检查、真实数据三阶段短训练和各阶段检查点评价。
-2. 核对32组历史日志/检查点与论文表格来源，确认论文实际使用哪套配置与版本。
-3. 冻结运行配置、随机种子、环境版本与数据哈希，再进行全量复现。
-4. 核对第三方继承代码许可证后再公开发布；本次不推断或新增授权。
+## Running the package
 
-## 本次验证
-YJY已有Anaconda环境：smoke_model.py通过尺度形状、融合前输出、递归融合和CPU反向传播检查；run.py --help通过。未进行真实数据训练或GPU验证。
+Use `train.py` for dataset presets, automatic channel inference, and input validation. The lower-level `run.py` entrypoint supports multivariate M forecasting with matching input and output dimensions and average pooling. Hyperparameters not explicitly specified in the paper use the prepared package's defaults; they should not be assumed to match every historical result.
+
+The default total budget is 100 epochs split across three stages, with validation-based early stopping. The default auxiliary coefficient of 0.1 comes from the historical implementation; it is not claimed to be uniquely optimal. Stage-specific test metrics are saved in `test_results/<setting>/stageN/metrics.json`.
+
+Historical shell scripts remain in the original source snapshot. They include output deletion and hard-coded multi-GPU execution and are not provided as the current run interface. Unrelated classification and anomaly-detection data loaders were removed from the forecasting import path, eliminating the sktime dependency.
+
+## Validation and remaining work
+
+Model shape, pre-fusion output, recursive fusion, and CPU backward checks passed. Real ETTh1 three-stage short training and independent checkpoint evaluation also passed. Synthetic custom CSV and Solar integration checks passed. Details and logs are in `verification/REPORT.md`.
+
+Remaining reproduction work includes checking the provenance of the 32 historical dataset-horizon results, identifying the configurations behind the paper tables, recording data hashes and a fully validated environment, and running the complete benchmark suite. GPU execution and installation in a clean environment remain unverified. Third-party code provenance and licenses should be checked before assigning a repository-wide license; this package does not infer or add such a license.

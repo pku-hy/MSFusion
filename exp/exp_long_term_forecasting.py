@@ -303,10 +303,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
                 batch_y_cut = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
 
-                # === 主损失（融合结果） ===
+                # === Main loss on the fused prediction ===
                 loss_main = criterion(outputs, batch_y_cut)
 
-                # === 约束损失：保持各尺度预测不退化 ===
+                # === Auxiliary loss to preserve scale-specific forecasting quality ===
                 alpha = self.args.scale_reg_weight
                 y_list, _ = self.multi_scale_process_inputs(batch_y_cut, None)
                 loss_reg = 0.0

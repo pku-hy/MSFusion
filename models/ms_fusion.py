@@ -82,22 +82,22 @@ class Multi_scale_Prediction_Block(nn.Module):
             
     def _build_scale_predictor(self, seq_len, pred_len, num_layers):
         """
-        为单个尺度构建预测层
+        Build the prediction layers for one temporal scale.
         """
         layers = []
         
         if num_layers <= 0:
-            # 如果层数为0或负数，返回恒等映射
+            # Return an identity mapping when the layer count is nonpositive.
             return nn.Identity()
         
-        # 第一层：从seq_len到pred_len
+        # First layer: map seq_len to pred_len.
         layers.append(
             nn.Linear(seq_len, pred_len)
         )
         layers.append(nn.GELU())
         layers.append(nn.Dropout(self.predict_dropout))
         
-        # 中间层：保持pred_len不变
+        # Intermediate layers preserve pred_len.
         for _ in range(num_layers - 2):
             layers.append(
                 nn.Linear(pred_len, pred_len)
@@ -105,7 +105,7 @@ class Multi_scale_Prediction_Block(nn.Module):
             layers.append(nn.GELU())
             layers.append(nn.Dropout(self.predict_dropout))
         
-        # 最后一层：如果有多层，最后一层是线性层（不添加激活函数和dropout）
+        # For multiple layers, use a final linear layer without activation or dropout.
         if num_layers >= 2:
             layers.append(
                 nn.Linear(pred_len, pred_len)
