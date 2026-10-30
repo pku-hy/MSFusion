@@ -1,0 +1,29 @@
+Validated /home/sangibb/hy/msfusion/source_20261030/MSFusion_paper/dataset/ETT-small/ETTh1.csv: 17420 rows, 7 channels; split lengths 8640/2880/2880
+Run ID: quickstart_real_ETTh1
+Args in experiment:
+Namespace(task_name='long_term_forecast', is_training=1, model_id='quickstart_real_ETTh1', model='ms_fusion', data='ETTh1', root_path='/home/sangibb/hy/msfusion/source_20261030/MSFusion_paper/dataset/ETT-small', data_path='ETTh1.csv', features='M', target='OT', freq='h', checkpoints='./checkpoints/', seq_len=336, label_len=0, pred_len=96, seasonal_patterns='Monthly', inverse=False, c_in=7, c_out=7, d_model=16, dropout=0.1, predict_dropout=0.1, predict_layer=1, embed='timeF', use_norm=1, down_sampling_layers=2, down_sampling_window=2, down_sampling_method='avg', use_future_temporal_feature=0, num_workers=0, itr=1, train_epochs=3, batch_size=128, patience=15, learning_rate=0.001, des='test', loss='MSE', drop_last=True, lradj='TST', pct_start=0.2, use_amp=False, plot=False, seed=2021, scale_reg_weight=0.1, comment='none', use_gpu=False, gpu=0, use_multi_gpu=False, devices='0,1', p_hidden_dims=[128, 128], p_hidden_layers=2)
+Use CPU
+>>>>>>>start training : long_term_forecast_quickstart_real_ETTh1_none_ms_fusion_ETTh1_sl336_pl96_dm16>>>>>>>>>>>>>>>>>>>>>>>>>>
+train 8209
+val 2785
+test 2785
+Stage-wise training epochs: S1=1, S2=1, S3=1
+=== Stage 1: train scale predictors (freeze fusion) ===
+Train scale0 loss: 0.437754 scale1 loss: 0.451668 scale2 loss: 0.437636 
+Val scale0 loss :0.723388scale1 loss :0.741718scale2 loss :0.776100
+[Stage1] Epoch 1 | train 0.442353 | val 0.747069
+[Stage1] Loaded best checkpoint
+=== Stage 2: train fusion (freeze scale predictors) ===
+[Stage2] Epoch 1 | train 0.409871 | val 0.717401
+[Stage2] Loaded best checkpoint
+=== Stage 3: light joint fine-tuning (constrained) ===
+[Stage3] Epoch 1 | train 0.410930 | val 0.755974 
+[Stage3] Loaded best checkpoint
+>>>>>>>testing : long_term_forecast_quickstart_real_ETTh1_none_ms_fusion_ETTh1_sl336_pl96_dm16<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+test 2785
+loading model
+stage=1 mse:0.40757811069488525, mae:0.4204682409763336
+loading model
+stage=2 mse:0.4111363887786865, mae:0.4243333041667938
+loading model
+stage=3 mse:0.4084532856941223, mae:0.4223066568374634

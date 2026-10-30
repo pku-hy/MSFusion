@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+dataset/*
+!dataset/.gitkeep
+checkpoints/
+test_results/
+plots/
+*.log
